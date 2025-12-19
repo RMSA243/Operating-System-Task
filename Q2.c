@@ -1,133 +1,103 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
 #include <unistd.h>
-#include <sys/mman.h>
-#include <pthread.h>
+#include <stdlib.h>
+#include <sys/types.h>
 
-#define FILE_SIZE 100
+#define MAX_SIZE 100
 
-void* replace_integers_first_half(void* arg)
+int main()
 {
+    int arr[MAX_SIZE], n, i;
+    int fd1[2], fd2[2]; // file descriptors for pipes
+    pid_t pid; // process id
+    int sum = 0;
 
-    int* map = (int*) arg;
+    printf("Enter the size of the array: ");
+    scanf("%d", &n);
 
-    int i = 0;
-    for (i = 0; i < FILE_SIZE / 2; i++)
+    printf("Enter the elements of the array:\n");
+
+    for(i=0;i<n;i++)
     {
 
-        if (isdigit((char) map[i]))
-  	{
-            map[i] = ' ';
 
-
-        }
-
-    }
-
-
-    return NULL;
-}
-
-void* replace_integers_second_half(void* arg)
-{
-
-    int* map = (int*) arg;
-
-    int i = 0;
-
-    for (i = FILE_SIZE / 2; i < FILE_SIZE; i++)
-    {
-        if (isdigit((char) map[i]))
-	{
-            map[i] = ' ';
-
-        }
-    }
-
-    return NULL;
-
-}
-
-
-
-int main(int argc, char* argv[])
-{
-
-    if (argc != 2)
-    {
-        printf("Sorry, Invalid arguments.\n\n");
-        return 1;
-
-    }
-
-    int fd = open(argv[1], O_RDWR);
-    if (fd == -1) 
-    {
-
-        perror("open");
-        return 1;
-    }
-
-
-
-    int* map = mmap(NULL, FILE_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (map == MAP_FAILED) 
-    {
-
-        perror("mmap");
-        return 1;
+        scanf("%d",&arr[i]);
 
     }
 
 
 
-    pthread_t threads[2];
-    if (pthread_create(&threads[0], NULL, replace_integers_first_half, map) != 0)
+    if ( pipe(fd1) < 0 || pipe(fd2) < 0 )   // creating pipes and checking if they are created correctly
     {
 
+        perror("pipe not working");
 
-        perror("pthread_create");
-        return 1;
-
-    }
-
-
-    if (pthread_create(&threads[1], NULL, replace_integers_second_half, map + (FILE_SIZE / 2)) != 0)
-    {
-
-        perror("Error: Pthread_create");
-        return 1;
-
-    }
-
-    if (pthread_join(threads[0], NULL) != 0)
-    {
-
-        perror("pthread_join");
-        return 1;
-
-    }
-
-    if (pthread_join(threads[1], NULL) != 0)
-    {
-
-
-        perror("pthread_join");
-        return 1;
-
-    }
-
-
-    if (munmap(map, FILE_SIZE) != 0)
-    {
-
-        perror("munmap");
         exit(1);
+
+
     }
 
-    close(fd);
+
+    pid = fork(); // create child process
+
+    if (pid < 0) //if fork fail
+    {
+
+	perror("unable to properly fork the commands");
+        exit(1);
+
+
+    }
+    else if (pid == 0) // child process
+    {
+        close(fd1[1]); // closing unused write end of pipe 1
+        close(fd2[0]); // close unused read end of pipe 2
+
+        int size = sizeof(int) * n;
+        int arr_recv[n];
+
+        read(fd1[0], arr_recv, size); // read from pipe 1
+
+        
+        for (i = 0; i < n; i++) // calculate sum of array
+        {
+
+            sum += arr_recv[i];
+
+
+        }
+
+
+        write(fd2[1], &sum, sizeof(sum)); // write sum to pipe 2
+        close(fd2[1]); // close write end of pipe 2
+
+
+        exit(0);
+
+
+    }
+    else //In parent process
+    {
+        close(fd1[0]); // close unused read end of pipe 1
+        close(fd2[1]); // closing the write end of the pipe 2
+
+        int size = sizeof(int) * n;
+
+        write(fd1[1], arr, size); // write array to pipe 1
+
+        int result;
+        read(fd2[0], &result, sizeof(result)); // read sum from pipe 2
+
+
+
+        printf("The sum of the array is %d\n", result);
+
+        close(fd2[0]); // closing the read end of pipe 2
+
+
+    }
+
 
     return 0;
+
 }
