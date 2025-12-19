@@ -1,70 +1,109 @@
 #include <stdio.h>
+#include <stdlib.h>
+
+
 #include <unistd.h>
-#include <sys/types.h>
+#include <sys/wait.h>
 
-int main()
+#include <string.h>
+#include <ctype.h>
+
+
+int main(int argc, char *argv[]) 
 {
-    int fd[2]; // for pipe
-    pid_t pid; // for process id
-
-    char message[] = "Hi There";
-    char buffer[100]; //for string transfer
-
-    if (pipe(fd) < 0) // creating pipe
-    {
-       	perror("pipe not working");
-        exit(1);
-    }
 
 
-    pid = fork(); // creating process
+    pid_t pid1;
+
+    pid_t pid2;
 
 
 
-    if (pid < 0) // if fork failed
-    {
+    int status;
 
-        perror("unable to properly fork the commands");
-        exit(1);
+    pid1 = fork();
 
-    }
-    else if (pid == 0) // In child process
-    {
-        close(fd[1]); // closing unused write end of the pipe
+   	if (pid1 == -1) 
+	{
 
-        read(fd[0], buffer, sizeof(buffer)); // reading from the pipe
+        	perror("fork");
+        	exit(1);
 
-       
-        for (int i = 0; buffer[i] != '\0'; i++)  // reverse case of each character in the message
-        {
+    	}
+	else if (pid1 == 0) 
+	{
 
-            if (buffer[i] >= 'a' && buffer[i] <= 'z')
-            {
-                buffer[i] -= 32;
-            }
-            else if (buffer[i] >= 'A' && buffer[i] <= 'Z')
-            {
+		printf(" 1st child process is created and PID = %d\n", getpid());
 
-                buffer[i] += 32;
+	        printf("Original array: %s\n", argv[1]);
 
-            }
+        	printf("Array size in bytes: %lu \n", strlen( argv[1] ) * sizeof( char ) );
 
+
+        
+       		char *ptr = argv[1];
+
+       		while (*ptr != '\0') //to remove special characters from the array
+		{
+
+            		if ( isalpha(*ptr)||isdigit(*ptr) )
+			{
+
+                		++ptr;
+
+            		}
+			else 
+			{
+
+                		memmove( ptr,ptr + 1,strlen(ptr) );
+
+            		}
+
+        	}
+
+
+        	printf("New updated array: %s\n", argv[1] );
+       		printf("Updated array's size in bytes: %lu\n", sizeof( argv[1]) );
+
+
+        	
+       		char *args[] = {"./count", argv[1], NULL}; //to count array size
+        	execv(args[0], args);
+
+        	perror("exec error");
+        	exit(1);
+
+    	} 
+	else 
+	{
+
+       		pid2 = fork();
+
+        	if (pid2 == -1) 
+		{
+            		perror("fork");
+           		exit(1);
+
+        	}
+		else if (pid2 == 0) 
+		{
+
+            		printf("2nd child process is created and PID = %d\n", getpid());
+
+        	} 
+		else 
+		{
+
+
+            		printf("Parent process waiting...\n");
+
+           		waitpid(pid1, &status, 0);
+            		waitpid(pid2, &status, 0);
+
+            		printf("all 'child' processes are finished, parent process is exiting. Thank-You.\n");
 
         }
 
 
-        printf("%s\n", buffer); // printing changed message
-
-
-    }
-    else // parent process
-    {
-        close(fd[0]); // closing unused read end
-
-        write(fd[1], message, sizeof(message)); // write to pipe
-    }
-
     return 0;
-
-
 }
